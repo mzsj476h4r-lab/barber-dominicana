@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>BARBERÍA DOMINICANA</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#111;color:#eee}
+header{background:#0b0b0b;padding:18px;text-align:center;border-bottom:1px solid #c9a227;position:sticky;top:0;z-index:5}
+h1{margin:0;color:#d4af37;font-size:24px}h2{color:#d4af37;margin-top:0}
+.container{max-width:1100px;margin:auto;padding:18px}
+.card{background:#1b1b1b;border:1px solid #333;border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 5px 20px #0005}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+input,select,button{width:100%;padding:12px;border-radius:9px;border:1px solid #555;background:#0f0f0f;color:#fff;font-size:15px}
+button{background:#d4af37;color:#111;border:0;font-weight:bold;cursor:pointer;margin-top:8px}
+button.secondary{background:#333;color:#fff}button.danger{background:#8e2020;color:#fff}
+label{display:block;margin:8px 0 5px;color:#bbb}.hidden{display:none}
+.stat{font-size:26px;color:#d4af37;font-weight:bold}.muted{color:#aaa;font-size:13px}
+table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:10px;border-bottom:1px solid #333;text-align:left}th{color:#d4af37}
+.nav{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:16px}.nav button{margin:0}
+.badge{display:inline-block;padding:5px 8px;border-radius:8px;background:#333;color:#ddd;font-size:12px}
+.error{color:#ff7777}.success{color:#73df9b}.gold{color:#d4af37}
+.date-parts{display:grid;grid-template-columns:1fr 1.2fr 1.4fr;gap:8px}
+.date-parts select{min-width:0;font-size:16px}
+.modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;padding:16px;z-index:100}.modal.hidden{display:none}.modal-card{width:min(520px,100%);background:#1b1b1b;border:1px solid #c9a227;border-radius:14px;padding:18px}.modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.container{padding:10px}table{font-size:12px}th,td{padding:7px}}
+</style>
+</head>
+<body>
+
+<header><h1>✂️ BARBERÍA DOMINICANA</h1><div id="userLabel" class="muted"></div></header>
+
+<div class="container">
+
+<section id="loginScreen" class="card" style="max-width:430px;margin:50px auto">
+<h2>Iniciar sesión</h2>
+<label>Barbero</label>
+<select id="loginUser"><option>Uriel</option><option>Erick</option></select>
+<label>Contraseña</label>
+<input id="loginPassword" type="password" placeholder="Contraseña">
+<button onclick="login()">ENTRAR</button>
+<p id="loginMsg" class="muted"></p>
+</section>
+
+<section id="app" class="hidden">
+<div class="nav">
+<button onclick="showSection('dashboard')">📊 Inicio</button>
+<button onclick="showSection('services')">✂️ Servicios</button>
+<button onclick="showSection('products')">📦 Insumos</button>
+<button onclick="showSection('history')">📋 Historial</button>
+<button onclick="showSection('summary')">📅 Resumen</button>
+<button class="secondary" onclick="logout()">🚪 Salir</button>
+</div>
+
+<section id="dashboard" class="view">
+<div class="grid">
+<div class="card"><div class="muted">Mis servicios hoy</div><div id="todayServices" class="stat">$0</div></div>
+<div class="card"><div class="muted">💰 Propinas hoy</div><div id="todayTips" class="stat">$0</div></div>
+<div class="card"><div class="muted">Mis retiros hoy</div><div id="todayWithdrawals" class="stat">$0</div></div>
+<div class="card"><div class="muted">Gastos barbería hoy</div><div id="todayExpenses" class="stat">$0</div></div>
+<div class="card"><div class="muted">Ganancia productos hoy</div><div id="todayProductProfit" class="stat">$0</div></div>
+</div>
+<div class="card"><h2>Resumen del día</h2><div id="dashboardDetails" class="muted"></div></div>
+<div class="card"><h2>🧾 Cierre de caja de hoy</h2><div id="dailyClose" class="grid"></div></div>
+<div class="card"><h2>📆 Cierres de todos los días</h2><div class="muted">Acá podés ver cómo cerraste cada día. Los servicios son solo los tuyos; los gastos de barbería son los compartidos.</div><div id="dailyClosuresDashboard"></div></div>
+</section>
+
+<section id="services" class="view hidden">
+<div class="grid">
+<div class="card">
+<h2>Registrar servicio</h2>
+<label>Fecha del servicio</label>
+<div class="date-parts">
+<select id="serviceDay" aria-label="Día"></select>
+<select id="serviceMonth" aria-label="Mes"></select>
+<select id="serviceYear" aria-label="Año"></select>
+</div>
+<label>Servicio</label>
+<select id="serviceType">
+<option value="Corte">Corte</option>
+<option value="Barba">Barba</option>
+<option value="Combo">Combo</option>
+</select>
+<label>Precio</label><input id="serviceAmount" type="number" value="17000">
+<label><input id="vip" type="checkbox" style="width:auto" onchange="setServicePrice()"> Precio VIP</label>
+<label>Propina</label><input id="tip" type="number" value="0" min="0">
+<label>Medio de pago</label>
+<select id="payment"><option>Efectivo</option><option>Mercado Pago</option></select>
+<button onclick="addService()">GUARDAR SERVICIO</button>
+</div>
+
+<div class="card">
+<h2>Retiro personal</h2>
+<label>Fecha del retiro</label><input id="withdrawDate" type="date">
+<label>Monto</label><input id="withdrawAmount" type="number" min="0">
+<label>Medio de pago</label><select id="withdrawPayment"><option>Efectivo</option><option>Mercado Pago</option></select>
+<label>Motivo</label><input id="withdrawReason" placeholder="Ej: retiro personal">
+<button onclick="addWithdrawal()">REGISTRAR RETIRO</button>
+</div>
+
+<div class="card">
+<h2>Gasto de barbería</h2>
+<label>Monto</label><input id="expenseAmount" type="number" min="0">
+<label>Concepto</label><input id="expenseConcept" placeholder="Ej: luz, alquiler, limpieza">
+<button onclick="addExpense()">REGISTRAR GASTO</button>
+</div>
+</div>
+</section>
+
+<section id="products" class="view hidden">
+<div class="grid">
+<div class="card">
+<h2>Nuevo insumo/producto</h2>
+<label>Nombre</label><input id="productName" placeholder="Gel, cera, polvo...">
+<label>Categoría</label><input id="productCategory" placeholder="Cabello, barba...">
+<label>Stock inicial</label><input id="initialStock" type="number" min="0" value="0">
+<label>Costo unitario</label><input id="productCost" type="number" min="0">
+<label>Precio de venta</label><input id="productPrice" type="number" min="0">
+<button onclick="addProduct()">AGREGAR PRODUCTO</button>
+</div>
+
+<div class="card">
+<h2>Comprar stock</h2>
+<label>Producto</label><select id="buyProduct"></select>
+<label>Cantidad</label><input id="buyQty" type="number" min="1">
+<label>Costo unitario</label><input id="buyCost" type="number" min="0">
+<label>Medio de pago</label><select id="buyPayment"><option>Efectivo</option><option>Mercado Pago</option></select>
+<button onclick="buyProduct()">REGISTRAR COMPRA</button>
+</div>
+
+<div class="card">
+<h2>Vender producto</h2>
+<label>Producto</label><select id="sellProduct"></select>
+<label>Cantidad</label><input id="sellQty" type="number" min="1">
+<label>Medio de pago</label><select id="sellPayment"><option>Efectivo</option><option>Mercado Pago</option></select>
+<button onclick="sellProduct()">REGISTRAR VENTA</button>
+</div>
+</div>
+
+<div class="card"><h2>Stock</h2><div id="productsTable"></div></div>
+<div class="card"><h2>📋 Movimientos de insumos</h2><div class="muted">Podés editar o eliminar ventas y compras. Si eliminás una venta, el stock se devuelve automáticamente.</div><div id="productMovementsTable"></div></div>
+</section>
+
+<section id="history" class="view hidden">
+<div class="card">
+<h2>Historial de mis movimientos</h2>
+<label>Fecha</label><input id="historyDate" type="date" onchange="loadHistory()">
+<div id="historyTable"></div>
+</div>
+</section>
+
+<section id="summary" class="view hidden">
+<div class="card">
+<h2>Resumen mensual</h2>
+<label>Mes</label><input id="summaryMonth" type="month" onchange="loadSummary()">
+<div id="summaryBox"></div>
+</div>
+</section>
+</section>
+</div>
+
+
+
+<div id="editWithdrawalModal" class="modal hidden">
+<div class="modal-card">
+<h2>✏️ Editar retiro personal</h2>
+<input id="editWithdrawalId" type="hidden">
+<label>Fecha</label><input id="editWithdrawalDate" type="date">
+<label>Monto</label><input id="editWithdrawalAmount" type="number" min="0">
+<label>Medio de pago</label><select id="editWithdrawalPayment"><option>Efectivo</option><option>Mercado Pago</option></select>
+<label>Motivo</label><input id="editWithdrawalReason">
+<div class="modal-actions"><button onclick="saveEditedWithdrawal()">GUARDAR</button><button class="secondary" onclick="closeEditWithdrawal()">CANCELAR</button></div>
+</div></div>
+
+<div id="editProductMovementModal" class="modal hidden">
+<div class="modal-card">
+<h2 id="editProductMovementTitle">✏️ Editar movimiento</h2>
+<input id="editProductMovementId" type="hidden">
+<input id="editProductMovementKind" type="hidden">
+<label>Fecha</label><input id="editProductMovementDate" type="date">
+<label>Producto</label><select id="editProductMovementProduct"></select>
+<label>Cantidad</label><input id="editProductMovementQty" type="number" min="1">
+<label>Medio de pago</label><select id="editProductMovementPayment"><option>Efectivo</option><option>Mercado Pago</option></select>
+<label id="editProductMovementCostLabel">Costo unitario</label><input id="editProductMovementCost" type="number" min="0">
+<div class="modal-actions"><button onclick="saveEditedProductMovement()">GUARDAR</button><button class="secondary" onclick="closeEditProductMovement()">CANCELAR</button></div>
+</div></div>
+
+<div id="dayEditModal" class="modal hidden">
+<div class="modal-card" style="max-height:85vh;overflow:auto">
+<h2 id="dayEditTitle">✏️ Ajustar cierre</h2>
+<div id="dayEditContent"></div>
+<button class="secondary" onclick="closeDayEditor()">CERRAR</button>
+</div></div>
+
+<script>
+const SUPABASE_URL="https://vxppckrpgtzdgtwrzglb.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_W3cwDbatwFYQo_akk1ShoQ_4KGUmAQy";
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+const emails={Uriel:"Urialmiron34@gmail.com",Erick:"Erickcejas34@gmail.com"};
+let currentUser=null, currentName=null, products=[];
+
+const money=n=>"$"+Number(n||0).toLocaleString("es-AR");
+function localDateObj(){return new Date()}
+const today=()=>{const d=localDateObj();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`};
+const monthNow=()=>today().slice(0,7);
+
+function msg(text,ok=false){alert(text)}
+
+function setServicePrice(){
+ const vip=document.getElementById("vip").checked;
+ const s=document.getElementById("serviceType").value;
+ let p=17000;if(s==="Barba")p=8000;if(s==="Combo")p=22000;
+ if(vip){if(s==="Corte")p=15000;if(s==="Combo")p=20000}
+ document.getElementById("serviceAmount").value=p;
+}
+document.getElementById("serviceType").addEventListener("change",setServicePrice);
+
+async function login(){
+ const name=document.getElementById("loginUser").value;
+ const password=document.getElementById("loginPassword").value;
+ const {data,error}=await sb.auth.signInWithPassword({email:emails[name],password});
+ if(error){document.getElementById("loginMsg").textContent="No se pudo iniciar sesión. Verificá usuario y contraseña.";return}
+ currentUser=data.user;currentName=name;
+ localStorage.setItem("bd_user",name);
+ document.getElementById("loginScreen").classList.add("hidden");
+ document.getElementById("app").classList.remove("hidden");
+ document.getElementById("userLabel").textContent="Sesión: "+name;
+ document.getElementById("historyDate").value=today();
+ populateDateParts("serviceDay","serviceMonth","serviceYear");
+ populateDateParts("editServiceDay","editServiceMonth","editServiceYear");
+ setDateParts("serviceDay","serviceMonth","serviceYear",today());
+ document.getElementById("withdrawDate").value=today();
+ document.getElementById("summaryMonth").value=monthNow();
+ await refresh();
+}
+
+async function logout(){
+ await sb.auth.signOut();currentUser=null;currentName=null;
+ document.getElementById("app").classList.add("hidden");
+ document.getElementById("loginScreen").classList.remove("hidden");
+ document.getElementById("loginPassword").value="";
+}
+
+async function addService(){
+ const amount=Number(document.getElementById("serviceAmount").value);
+ const tip=Number(document.getElementById("tip").value||0);
+ const service=document.getElementById("serviceType").value;
+ const vip=document.getElementById("vip").checked;
+ const payment=document.getElementById("payment").value;
+ const date=getDateParts("serviceDay","serviceMonth","serviceYear")||today();
+ if(!amount)return msg("Ingresá un precio");
+ const {error}=await sb.from("movements").insert({
+  user_id:currentUser.id,user_name:currentName,kind:"service",date,
+  service,vip,amount,tip,payment
+ });
+ if(error)return msg(error.message);
+ document.getElementById("tip").value=0;msg("Servicio guardado");await refresh();
+}
+
+async function addWithdrawal(){
+ const amount=Number(document.getElementById("withdrawAmount").value);
+ const reason=document.getElementById("withdrawReason").value;
+ const payment=document.getElementById("withdrawPayment").value;
+ const date=document.getElementById("withdrawDate").value||today();
+ if(!amount)return msg("Ingresá un monto");
+ const {error}=await sb.from("movements").insert({
+  user_id:currentUser.id,user_name:currentName,kind:"withdrawal",date,amount,reason,payment
+ });
+ if(error)return msg(error.message);
+ document.getElementById("withdrawAmount").value="";document.getElementById("withdrawReason").value="";
+ msg("Retiro guardado");await refresh();
+}
+
+async function addExpense(){
+ const amount=Number(document.getElementById("expenseAmount").value);
+ const concept=document.getElementById("expenseConcept").value;
+ if(!amount)return msg("Ingresá un monto");
+ const {error}=await sb.from("movements").insert({
+ user_id:currentUser.id,user_name:currentName,kind:"expense",date:today(),amount,concept
+ });
+ if(error)return msg(error.message);
+ document.getElementById("expenseAmount").value="";document.getElementById("expenseConcept").value="";
+ msg("Gasto guardado");await refresh();
+}
+
+async function loadProducts(){
+ const {data,error}=await sb.from("products").select("*").order("name");
+ if(error){console.error(error);return}
+ products=data||[];
+ const opts=products.map(p=>`<option value="${p.id}">${esc(p.name)} — stock ${p.stock}</option>`).join("");
+ document.getElementById("buyProduct").innerHTML=opts;
+ document.getElementById("sellProduct").innerHTML=opts;
+ document.getElementById("productsTable").innerHTML=products.length?`<div style="overflow-x:auto"><table><tr><th>Producto</th><th>Stock</th><th>Costo</th><th>Venta</th><th>Acciones</th></tr>${products.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.stock}</td><td>${money(p.cost)}</td><td>${money(p.price)}</td><td><button class="secondary" style="margin:0 4px 4px 0;padding:7px 9px" onclick="editProduct('${p.id}')">✏️ Editar</button></td></tr>`).join("")}</table></div>`:"<p class='muted'>Todavía no hay productos.</p>";
+ await loadProductMovements();
+}
+
+async function loadProductMovements(){
+ const {data,error}=await sb.from("product_movements").select("*, products(name)").eq("user_id",currentUser.id).eq("deleted",false).order("date",{ascending:false}).order("created_at",{ascending:false});
+ if(error){document.getElementById("productMovementsTable").textContent=error.message;return}
+ const rows=(data||[]).map(x=>{
+  const name=x.products?.name||products.find(p=>p.id===x.product_id)?.name||"Producto";
+  const tipo=x.kind==="sale"?"Venta":x.kind==="purchase"?"Compra":"Inicial";
+  const actions=(x.kind==="sale"||x.kind==="purchase")?`<button class="secondary" style="margin:0 4px 4px 0;padding:7px 9px" onclick="editProductMovement('${x.id}')">✏️ Editar</button><button class="danger" style="margin:0;padding:7px 9px" onclick="deleteProductMovement('${x.id}')">🗑️ Eliminar</button>`:"";
+  return `<tr><td>${x.date.split("-").reverse().join("/")}</td><td>${tipo}</td><td>${esc(name)}</td><td>${x.quantity}</td><td>${money(x.total)}</td><td>${esc(x.payment||"—")}</td><td>${actions}</td></tr>`;
+ }).join("");
+ document.getElementById("productMovementsTable").innerHTML=`<div style="overflow-x:auto"><table><tr><th>Fecha</th><th>Tipo</th><th>Producto</th><th>Cant.</th><th>Total</th><th>Pago</th><th>Acciones</th></tr>${rows||"<tr><td colspan='7'>Sin movimientos</td></tr>"}</table></div>`;
+}
+
+async function editProduct(id){
+ const p=products.find(x=>x.id===id);
+ if(!p)return;
+ const name=prompt("Nombre del producto:",p.name); if(name===null)return;
+ const category=prompt("Categoría:",p.category||""); if(category===null)return;
+ const costRaw=prompt("Costo unitario:",p.cost||0); if(costRaw===null)return;
+ const priceRaw=prompt("Precio de venta:",p.price||0); if(priceRaw===null)return;
+ const cost=Number(costRaw),price=Number(priceRaw);
+ if(!name.trim()||cost<0||price<0)return msg("Datos inválidos");
+ const {error}=await sb.from("products").update({name:name.trim(),category:category.trim(),cost,price}).eq("id",id);
+ if(error)return msg(error.message);
+ msg("Producto actualizado");await refresh();
+}
+
+async function editProductMovement(id){
+ const {data,error}=await sb.from("product_movements").select("*").eq("id",id).eq("user_id",currentUser.id).eq("deleted",false).single();
+ if(error||!data)return msg("No se encontró el movimiento");
+ editingProductMovementId=id;
+ document.getElementById("editProductMovementKind").value=data.kind;
+ document.getElementById("editProductMovementDate").value=data.date||today();
+ document.getElementById("editProductMovementQty").value=data.quantity||1;
+ document.getElementById("editProductMovementPayment").value=data.payment||"Efectivo";
+ document.getElementById("editProductMovementCost").value=data.unit_cost||0;
+ document.getElementById("editProductMovementTitle").textContent=data.kind==="sale"?"✏️ Editar venta de producto":"✏️ Editar compra de stock";
+ document.getElementById("editProductMovementCostLabel").textContent=data.kind==="sale"?"Precio unitario de venta":"Costo unitario";
+ document.getElementById("editProductMovementCost").value=data.kind==="sale"?(data.unit_price||0):(data.unit_cost||0);
+ const opts=products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
+ document.getElementById("editProductMovementProduct").innerHTML=opts;
+ document.getElementById("editProductMovementProduct").value=data.product_id;
+ closeDayEditor();
+ document.getElementById("editProductMovementModal").classList.remove("hidden");
+}
+
+function closeEditProductMovement(){editingProductMovementId=null;document.getElementById("editProductMovementModal").classList.add("hidden");}
+
+async function saveEditedProductMovement(){
+ if(!editingProductMovementId)return;
+ const {data:old,error:oe}=await sb.from("product_movements").select("*").eq("id",editingProductMovementId).eq("user_id",currentUser.id).eq("deleted",false).single();
+ if(oe||!old)return msg("No se encontró el movimiento");
+ const kind=old.kind;
+ const date=document.getElementById("editProductMovementDate").value||today();
+ const newProductId=document.getElementById("editProductMovementProduct").value;
+ const qty=Number(document.getElementById("editProductMovementQty").value);
+ const payment=document.getElementById("editProductMovementPayment").value;
+ const unit=Number(document.getElementById("editProductMovementCost").value);
+ if(!newProductId||qty<=0||unit<0||!date)return msg("Revisá los datos");
+ const oldProduct=products.find(p=>p.id===old.product_id);
+ const newProduct=products.find(p=>p.id===newProductId);
+ if(!oldProduct||!newProduct)return msg("No se encontró el producto");
+ // Revertir primero el efecto del movimiento viejo sobre stock.
+ const revertedOldStock=Number(oldProduct.stock)+(kind==="sale"?Number(old.quantity): -Number(old.quantity));
+ if(revertedOldStock<0)return msg("No se puede corregir esta compra porque dejaría el stock negativo.");
+ let finalStock=revertedOldStock;
+ if(newProductId===old.product_id){
+   finalStock=kind==="sale"?revertedOldStock-qty:revertedOldStock+qty;
+   if(finalStock<0)return msg("No hay stock suficiente para esa venta.");
+   const {error:e1}=await sb.from("products").update({stock:finalStock,...(kind==="purchase"?{cost:unit}:{})}).eq("id",old.product_id);
+   if(e1)return msg(e1.message);
+ }else{
+   const {error:e1}=await sb.from("products").update({stock:revertedOldStock}).eq("id",old.product_id);
+   if(e1)return msg(e1.message);
+   const targetStock=kind==="sale"?Number(newProduct.stock)-qty:Number(newProduct.stock)+qty;
+   if(targetStock<0)return msg("No hay stock suficiente en el nuevo producto para esa venta.");
+   const {error:e2}=await sb.from("products").update({stock:targetStock,...(kind==="purchase"?{cost:unit}:{})}).eq("id",newProductId);
+   if(e2)return msg(e2.message);
+ }
+ const total=qty*unit;
+ const profit=kind==="sale"?qty*(unit-Number(newProduct.cost||0)):0;
+ const update={product_id:newProductId,date,quantity:qty,payment,total,concept:kind==="sale"?"Venta de producto":"Compra de stock",...(kind==="sale"?{unit_price:unit,unit_cost:Number(newProduct.cost||0),profit}:{unit_cost:unit,unit_price:0,profit:0})};
+ const {error:ue}=await sb.from("product_movements").update(update).eq("id",editingProductMovementId).eq("user_id",currentUser.id).eq("deleted",false);
+ if(ue)return msg(ue.message);
+ closeEditProductMovement();msg("Movimiento actualizado");await refresh();
+}
+
+async function deleteProductMovement(id){
+ const {data:old,error}=await sb.from("product_movements").select("*").eq("id",id).eq("user_id",currentUser.id).eq("deleted",false).single();
+ if(error||!old)return msg("No se encontró el movimiento");
+ if(old.kind!=="sale"&&old.kind!=="purchase")return msg("Este movimiento no se puede eliminar");
+ if(!confirm(`¿Eliminar esta ${old.kind==="sale"?"venta":"compra"}? El stock se corregirá automáticamente.`))return;
+ const p=products.find(x=>x.id===old.product_id);
+ if(!p)return msg("No se encontró el producto");
+ const newStock=Number(p.stock)+(old.kind==="sale"?Number(old.quantity):-Number(old.quantity));
+ if(newStock<0)return msg("No se puede eliminar esta compra porque dejaría el stock negativo.");
+ const {error:e1}=await sb.from("products").update({stock:newStock}).eq("id",old.product_id);
+ if(e1)return msg(e1.message);
+ const {error:e2}=await sb.from("product_movements").update({deleted:true}).eq("id",id).eq("user_id",currentUser.id);
+ if(e2)return msg(e2.message);
+ msg("Movimiento eliminado y stock corregido");await refresh();
+}
+
+
+async function addProduct(){
+ const name=document.getElementById("productName").value.trim();
+ const category=document.getElementById("productCategory").value.trim();
+ const stock=Number(document.getElementById("initialStock").value||0);
+ const cost=Number(document.getElementById("productCost").value||0);
+ const price=Number(document.getElementById("productPrice").value||0);
+ if(!name)return msg("Ingresá el nombre");
+ const {data,error}=await sb.from("products").insert({name,category,stock,cost,price,created_by:currentUser.id}).select().single();
+ if(error)return msg(error.message);
+ if(stock>0){
+   await sb.from("product_movements").insert({product_id:data.id,user_id:currentUser.id,user_name:currentName,kind:"initial",quantity:stock,unit_cost:cost,total:stock*cost,date:today(),concept:"Stock inicial"});
+ }
+ document.getElementById("productName").value="";document.getElementById("productCategory").value="";
+ document.getElementById("initialStock").value=0;document.getElementById("productCost").value="";document.getElementById("productPrice").value="";
+ msg("Producto agregado");await loadProducts();
+}
+
+async function buyProduct(){
+ const id=document.getElementById("buyProduct").value;
+ const qty=Number(document.getElementById("buyQty").value);
+ const cost=Number(document.getElementById("buyCost").value);
+ const p=products.find(x=>x.id===id);
+ if(!p||qty<=0||cost<0)return msg("Completá los datos");
+ const {error:e1}=await sb.from("products").update({stock:Number(p.stock)+qty,cost}).eq("id",id);
+ if(e1)return msg(e1.message);
+ const payment=document.getElementById("buyPayment").value;
+ const {error:e2}=await sb.from("product_movements").insert({product_id:id,user_id:currentUser.id,user_name:currentName,kind:"purchase",quantity:qty,unit_cost:cost,total:qty*cost,payment,date:today(),concept:"Compra de stock"});
+ if(e2)return msg(e2.message);
+ document.getElementById("buyQty").value="";document.getElementById("buyCost").value="";
+ msg("Compra registrada");await refresh();
+}
+
+async function sellProduct(){
+ const id=document.getElementById("sellProduct").value;
+ const qty=Number(document.getElementById("sellQty").value);
+ const p=products.find(x=>x.id===id);
+ if(!p||qty<=0)return msg("Completá los datos");
+ if(Number(p.stock)<qty)return msg("No hay stock suficiente");
+ const total=qty*Number(p.price||0), profit=qty*(Number(p.price||0)-Number(p.cost||0));
+ const {error:e1}=await sb.from("products").update({stock:Number(p.stock)-qty}).eq("id",id);
+ if(e1)return msg(e1.message);
+ const payment=document.getElementById("sellPayment").value;
+ const {error:e2}=await sb.from("product_movements").insert({
+ product_id:id,user_id:currentUser.id,user_name:currentName,kind:"sale",quantity:qty,
+ unit_cost:Number(p.cost||0),unit_price:Number(p.price||0),total,profit,payment,date:today(),concept:"Venta de producto"
+ });
+ if(e2)return msg(e2.message);
+ document.getElementById("sellQty").value="";msg("Venta registrada. Ganancia: "+money(profit));await refresh();
+}
+
+async function getMovements(){
+ const {data,error}=await sb.from("movements").select("*").eq("date",today()).eq("deleted",false).order("created_at",{ascending:false});
+ if(error){console.error(error);return []}return data||[];
+}
+
+async function refresh(){
+ await loadProducts();await loadDashboard();await loadHistory();await loadSummary();
+}
+
+async function getDailyClosure(date){
+ const {data:ms,error:e1}=await sb.from("movements").select("*").eq("date",date).eq("deleted",false);
+ if(e1) throw e1;
+ const all=ms||[];
+ const own=all.filter(x=>x.user_id===currentUser.id);
+ const services=own.filter(x=>x.kind==="service");
+ const withdrawals=own.filter(x=>x.kind==="withdrawal");
+ const expenses=all.filter(x=>x.kind==="expense");
+ const serviceBaseTotal=services.reduce((a,x)=>a+Number(x.amount||0),0);
+ const tipTotal=services.reduce((a,x)=>a+Number(x.tip||0),0);
+ const serviceTotal=serviceBaseTotal+tipTotal;
+ const serviceCash=services.filter(x=>(x.payment||"").toLowerCase()==="efectivo").reduce((a,x)=>a+Number(x.amount||0)+Number(x.tip||0),0);
+ const serviceMP=services.filter(x=>(x.payment||"").toLowerCase().includes("mercado")).reduce((a,x)=>a+Number(x.amount||0)+Number(x.tip||0),0);
+ const withdrawalTotal=withdrawals.reduce((a,x)=>a+Number(x.amount||0),0);
+ const withdrawalCash=withdrawals.filter(x=>(x.payment||"Efectivo").toLowerCase()==="efectivo").reduce((a,x)=>a+Number(x.amount||0),0);
+ const withdrawalMP=withdrawals.filter(x=>(x.payment||"").toLowerCase().includes("mercado")).reduce((a,x)=>a+Number(x.amount||0),0);
+ const expenseTotal=expenses.reduce((a,x)=>a+Number(x.amount||0),0);
+ const serviceCashBalance=serviceCash-withdrawalCash-expenseTotal;
+ const {data:pm,error:e2}=await sb.from("product_movements").select("*").eq("date",date).eq("kind","sale").eq("deleted",false).eq("user_id",currentUser.id);
+ if(e2) throw e2;
+ const productRows=pm||[];
+ const productSales=productRows.reduce((a,x)=>a+Number(x.total||0),0);
+ const productCash=productRows.filter(x=>(x.payment||"").toLowerCase()==="efectivo").reduce((a,x)=>a+Number(x.total||0),0);
+ const productMP=productRows.filter(x=>(x.payment||"").toLowerCase().includes("mercado")).reduce((a,x)=>a+Number(x.total||0),0);
+ const productProfit=productRows.reduce((a,x)=>a+Number(x.profit||0),0);
+ const {data:pu,error:e3}=await sb.from("product_movements").select("*").eq("date",date).eq("kind","purchase").eq("deleted",false).eq("user_id",currentUser.id);
+ if(e3) throw e3;
+ const productPurchases=(pu||[]).reduce((a,x)=>a+Number(x.total||0),0);
+ const productPurchaseCash=(pu||[]).filter(x=>(x.payment||"Efectivo").toLowerCase()==="efectivo").reduce((a,x)=>a+Number(x.total||0),0);
+ const productPurchaseMP=(pu||[]).filter(x=>(x.payment||"").toLowerCase().includes("mercado")).reduce((a,x)=>a+Number(x.total||0),0);
+ const productCashBalance=productCash-productPurchaseCash;
+ const countCorte=services.filter(x=>x.service==="Corte").length;
+ const countBarba=services.filter(x=>x.service==="Barba").length;
+ const countCombo=services.filter(x=>x.service==="Combo").length;
+ const countTotal=services.length;
+ return {serviceBaseTotal,tipTotal,serviceTotal,serviceCash,serviceMP,withdrawalTotal,withdrawalCash,withdrawalMP,expenseTotal,serviceCashBalance,productSales,productCash,productMP,productProfit,productPurchases,productPurchaseCash,productPurchaseMP,productCashBalance,countCorte,countBarba,countCombo,countTotal,totalIn:serviceTotal,totalOut:withdrawalTotal+expenseTotal,cashIn:serviceCash,cashBalance:serviceCashBalance,services,withdrawals,expenses};
+}
+
+async function renderDailyClosure(date){
+ try{
+  const c=await getDailyClosure(date);
+  document.getElementById("dailyClose").innerHTML=`
+   <div class="card"><h2>✂️ CIERRE — BARBERÍA</h2><div class="muted">Servicios y propinas por separado</div><p>✂️ <b>Total de servicios: ${c.countTotal}</b></p><p>✂️ Cortes: <b>${c.countCorte}</b> &nbsp; | &nbsp; Combo: <b>${c.countCombo}</b> &nbsp; | &nbsp; Barba: <b>${c.countBarba}</b></p><p>✂️ Servicios: <b>${money(c.serviceBaseTotal)}</b></p><p>💰 Propinas: <b>${money(c.tipTotal)}</b></p><div class="stat">Total cobrado: ${money(c.serviceTotal)}</div><p>💵 Efectivo: <b>${money(c.serviceCash)}</b></p><p>💳 Mercado Pago: <b>${money(c.serviceMP)}</b></p><p>📤 Retiros: <b>${money(c.withdrawalTotal)}</b> — 💵 Efectivo ${money(c.withdrawalCash)} / 💳 MP ${money(c.withdrawalMP)}</p><p>🧾 Gastos barbería: <b>${money(c.expenseTotal)}</b></p><p>🏁 <b>Efectivo que queda por servicios: ${money(c.serviceCashBalance)}</b></p></div>
+   <div class="card"><h2>📦 CIERRE — INSUMOS / PRODUCTOS</h2><div class="muted">Ventas de productos</div><div class="stat">${money(c.productSales)}</div><p>💵 Efectivo: <b>${money(c.productCash)}</b></p><p>💳 Mercado Pago: <b>${money(c.productMP)}</b></p><p>🛒 Compras de insumos: <b>${money(c.productPurchases)}</b> — 💵 ${money(c.productPurchaseCash)} / 💳 ${money(c.productPurchaseMP)}</p><p>📈 Ganancia: <b>${money(c.productProfit)}</b></p><p>🏁 <b>Saldo de productos: ${money(c.productCashBalance)}</b></p></div>`;
+ }catch(e){document.getElementById("dailyClose").textContent=e.message||"No se pudo calcular el cierre.";}
+}
+
+async function loadDailyClosuresDashboard(){
+ const el=document.getElementById("dailyClosuresDashboard");
+ if(!el)return;
+ const m=monthNow();
+ const from=m+"-01";
+ const lastDay=new Date(Number(m.slice(0,4)),Number(m.slice(5,7)),0).getDate();
+ const rows=[];
+ for(let day=1;day<=lastDay;day++){
+  const date=`${m}-${String(day).padStart(2,"0")}`;
+  const c=await getDailyClosure(date);
+  rows.push(`<tr><td><b>${date.split("-").reverse().join("/")}</b></td><td>${c.countCorte}</td><td>${c.countCombo}</td><td>${c.countBarba}</td><td>${c.countTotal}</td><td>${money(c.serviceBaseTotal)}</td><td>${money(c.tipTotal)}</td><td>${money(c.serviceTotal)}</td><td>${money(c.serviceCash)}</td><td>${money(c.serviceMP)}</td><td>${money(c.withdrawalTotal)}</td><td>${money(c.expenseTotal)}</td><td><b>${money(c.serviceCashBalance)}</b></td><td><button class="secondary" style="margin:0 4px 4px 0;padding:7px 9px" onclick="showDayClosure('${date}')">Ver cierre</button><button class="secondary" style="margin:0;padding:7px 9px" onclick="openDayEditor('${date}')">✏️ Ajustar</button></td></tr>`);
+ }
+ el.innerHTML=`<div style="overflow-x:auto"><table><tr><th>Día</th><th>Cortes</th><th>Combos</th><th>Barbas</th><th>Total servicios</th><th>Servicios $</th><th>Propinas</th><th>Total cobrado</th><th>Efectivo</th><th>MP</th><th>Retiros</th><th>Gastos</th><th>Caja final</th><th></th></tr>${rows.join("")}</table></div>`;
+}
+
+async function showDayClosure(date){
+ try{
+  const c=await getDailyClosure(date);
+  const dateLabel=date.split("-").reverse().join("/");
+  const message=`CIERRE ${dateLabel}\n\nCortes: ${c.countCorte}\nCombos: ${c.countCombo}\nBarbas: ${c.countBarba}\nTotal servicios: ${c.countTotal}\n\nServicios: ${money(c.serviceBaseTotal)}\nPropinas: ${money(c.tipTotal)}\nTOTAL COBRADO: ${money(c.serviceTotal)}\n\nEfectivo: ${money(c.serviceCash)}\nMercado Pago: ${money(c.serviceMP)}\nRetiros: ${money(c.withdrawalTotal)}\n  - Efectivo: ${money(c.withdrawalCash)}\n  - Mercado Pago: ${money(c.withdrawalMP)}\nGastos: ${money(c.expenseTotal)}\n\nCAJA FINAL: ${money(c.serviceCashBalance)}\n\nPRODUCTOS\nVentas: ${money(c.productSales)}\nEfectivo: ${money(c.productCash)}\nMercado Pago: ${money(c.productMP)}\nCompras: ${money(c.productPurchases)}\n  - Efectivo: ${money(c.productPurchaseCash)}\n  - Mercado Pago: ${money(c.productPurchaseMP)}\nGanancia: ${money(c.productProfit)}`;
+  alert(message);
+ }catch(e){alert(e.message||"No se pudo cargar el cierre");}
+}
+
+async function openDayEditor(date){
+ const {data:ms,error:e1}=await sb.from("movements").select("*").eq("date",date).eq("deleted",false).eq("user_id",currentUser.id).order("created_at",{ascending:false});
+ if(e1)return msg(e1.message);
+ const {data:pm,error:e2}=await sb.from("product_movements").select("*, products(name)").eq("date",date).eq("deleted",false).eq("user_id",currentUser.id).order("created_at",{ascending:false});
+ if(e2)return msg(e2.message);
+ const movements=[...(ms||[]),...(pm||[])];
+ const label=date.split("-").reverse().join("/");
+ const rows=movements.map(x=>{
+  if(x.kind==="service")return `<div class="card"><b>✂️ ${esc(x.service||"Servicio")}</b> — ${money(Number(x.amount||0)+Number(x.tip||0))}<div class="muted">${money(x.amount)} + propina ${money(x.tip)} · ${esc(x.payment||"")}</div><button class="secondary" onclick="editService('${x.id}')">✏️ Editar servicio</button></div>`;
+  if(x.kind==="withdrawal")return `<div class="card"><b>📤 Retiro personal</b> — ${money(x.amount)}</div><div class="muted">${esc(x.payment||"Efectivo")} · ${esc(x.reason||"")}</div><button class="secondary" onclick="editWithdrawal('${x.id}')">✏️ Editar retiro</button>`;
+  if(x.kind==="expense")return `<div class="card"><b>🧾 Gasto barbería</b> — ${money(x.amount)}</div><div class="muted">${esc(x.concept||"")}</div>`;
+  if(x.kind==="sale")return `<div class="card"><b>📦 Venta</b> — ${esc(x.products?.name||"Producto")} × ${x.quantity} — ${money(x.total)}</div><div class="muted">${esc(x.payment||"Efectivo")}</div><button class="secondary" onclick="editProductMovement('${x.id}')">✏️ Editar venta</button><button class="danger" onclick="deleteProductMovement('${x.id}')">🗑️ Eliminar venta</button>`;
+  if(x.kind==="purchase")return `<div class="card"><b>🛒 Compra</b> — ${esc(x.products?.name||"Producto")} × ${x.quantity} — ${money(x.total)}</div><button class="secondary" onclick="editProductMovement('${x.id}')">✏️ Editar compra</button><button class="danger" onclick="deleteProductMovement('${x.id}')">🗑️ Eliminar compra</button>`;
+  return "";
+ }).join("");
+ document.getElementById("dayEditTitle").textContent=`✏️ Ajustar movimientos del ${label}`;
+ document.getElementById("dayEditContent").innerHTML=rows||"<p class='muted'>No hay movimientos de ese día.</p>";
+ document.getElementById("dayEditModal").classList.remove("hidden");
+}
+function closeDayEditor(){document.getElementById("dayEditModal").classList.add("hidden");}
+
+async function loadDashboard(){
+ const ms=await getMovements();
+ const own=ms.filter(x=>x.user_id===currentUser.id);
+ const serviceRows=own.filter(x=>x.kind==="service");
+ const services=serviceRows.reduce((a,x)=>a+Number(x.amount||0)+Number(x.tip||0),0);
+ const tips=serviceRows.reduce((a,x)=>a+Number(x.tip||0),0);
+ const withdrawals=own.filter(x=>x.kind==="withdrawal").reduce((a,x)=>a+Number(x.amount),0);
+ const expenses=ms.filter(x=>x.kind==="expense").reduce((a,x)=>a+Number(x.amount),0);
+ const {data:pm}=await sb.from("product_movements").select("*").eq("date",today()).eq("kind","sale").eq("user_id",currentUser.id).eq("deleted",false);
+ const profit=(pm||[]).reduce((a,x)=>a+Number(x.profit||0),0);
+ document.getElementById("todayServices").textContent=money(services);
+ document.getElementById("todayTips").textContent=money(tips);
+ document.getElementById("todayWithdrawals").textContent=money(withdrawals);
+ document.getElementById("todayExpenses").textContent=money(expenses);
+ document.getElementById("todayProductProfit").textContent=money(profit);
+ const countCorte=serviceRows.filter(x=>x.service==="Corte").length;
+ const countCombo=serviceRows.filter(x=>x.service==="Combo").length;
+ const countBarba=serviceRows.filter(x=>x.service==="Barba").length;
+ document.getElementById("dashboardDetails").innerHTML=`<p>✂️ <b>Total: ${serviceRows.length} servicios</b> — ${countCorte} corte${countCorte===1?"":"s"}, ${countCombo} combo${countCombo===1?"":"s"}, ${countBarba} barba${countBarba===1?"":"s"}</p><p>✂️ Servicios: <b>${money(services-tips)}</b></p><p>💰 Propinas: <b>${money(tips)}</b></p><p>💵 Total servicios + propinas: <b>${money(services)}</b></p><p>Retiros personales: <b>${money(withdrawals)}</b></p><p>Gastos compartidos registrados: <b>${money(expenses)}</b></p><p>Ganancia por productos: <b>${money(profit)}</b></p>`;
+ await renderDailyClosure(today());
+ await loadDailyClosuresDashboard();
+}
+
+async function loadHistory(){
+ const date=document.getElementById("historyDate").value||today();
+ const {data:ownData,error:e1}=await sb.from("movements").select("*").eq("date",date).eq("deleted",false).eq("user_id",currentUser.id).order("created_at",{ascending:false});
+ const {data:expenseData,error:e2}=await sb.from("movements").select("*").eq("date",date).eq("deleted",false).eq("kind","expense").order("created_at",{ascending:false});
+ const error=e1||e2; const data=[...(ownData||[]),...(expenseData||[])].filter((x,i,a)=>a.findIndex(y=>y.id===x.id)===i).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+ if(error){document.getElementById("historyTable").textContent=error.message;return}
+ const rows=(data||[]).map(x=>{
+  const actions=x.user_id===currentUser.id && (x.kind==="service" || x.kind==="withdrawal")
+   ? `<button class="secondary" onclick="${x.kind==="service"?`editService('${x.id}')`:`editWithdrawal('${x.id}')`}">✏️ Editar</button><button class="danger" onclick="${x.kind==="service"?`deleteService('${x.id}')`:`deleteWithdrawal('${x.id}')`}">🗑️ Eliminar</button>`
+   : "";
+  const isService=x.kind==="service";
+  return `<tr><td>${esc(x.user_name)}</td><td>${esc(x.kind)}</td><td>${esc(x.service||x.concept||x.reason||"")}</td><td>${money(Number(x.amount||0))}</td><td>${isService?money(Number(x.tip||0)):"—"}</td><td>${esc(x.payment||"")}</td><td>${actions}</td></tr>`;
+ }).join("");
+ document.getElementById("historyTable").innerHTML=`<table><tr><th>Usuario</th><th>Tipo</th><th>Detalle</th><th>Monto</th><th>Propina</th><th>Pago</th><th>Acciones</th></tr>${rows||"<tr><td colspan='7'>Sin movimientos</td></tr>"}</table>`;
+}
+
+
+let editingServiceId=null, editingProductMovementId=null;
+
+function populateDateParts(dayId,monthId,yearId){
+ const d=document.getElementById(dayId), m=document.getElementById(monthId), y=document.getElementById(yearId);
+ if(!d||!m||!y)return;
+ d.innerHTML="";
+ for(let i=1;i<=31;i++)d.innerHTML+=`<option value="${String(i).padStart(2,"0")}">${i}</option>`;
+ m.innerHTML="";
+ const months=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+ months.forEach((name,i)=>m.innerHTML+=`<option value="${String(i+1).padStart(2,"0")}">${name}</option>`);
+ y.innerHTML="";
+ const current=new Date().getFullYear();
+ for(let i=current-5;i<=current+2;i++)y.innerHTML+=`<option value="${i}">${i}</option>`;
+}
+
+function setDateParts(dayId,monthId,yearId,dateStr){
+ const [y,m,d]=(dateStr||today()).split("-");
+ const D=document.getElementById(dayId), M=document.getElementById(monthId), Y=document.getElementById(yearId);
+ if(!D||!M||!Y)return;
+ D.value=d; M.value=m; Y.value=y;
+}
+
+function getDateParts(dayId,monthId,yearId){
+ const d=document.getElementById(dayId)?.value, m=document.getElementById(monthId)?.value, y=document.getElementById(yearId)?.value;
+ if(!d||!m||!y)return "";
+ const max=new Date(Number(y),Number(m),0).getDate();
+ if(Number(d)>max)return "";
+ return `${y}-${m}-${d}`;
+}
+
+async function editService(id){
+ const {data,error}=await sb.from("movements").select("*").eq("id",id).eq("user_id",currentUser.id).eq("kind","service").eq("deleted",false).single();
+ if(error||!data)return msg("No se encontró el servicio");
+ editingServiceId=id;
+ populateDateParts("editServiceDay","editServiceMonth","editServiceYear");
+ setDateParts("editServiceDay","editServiceMonth","editServiceYear",data.date||today());
+ document.getElementById("editServiceType").value=data.service||"Corte";
+ document.getElementById("editServiceAmount").value=data.amount||0;
+ document.getElementById("editServiceTip").value=data.tip||0;
+ document.getElementById("editServicePayment").value=data.payment||"Efectivo";
+ document.getElementById("editServiceVip").checked=!!data.vip;
+ closeDayEditor();
+ document.getElementById("editServiceModal").classList.remove("hidden");
+}
+
+function closeEditService(){
+ editingServiceId=null;
+ document.getElementById("editServiceModal").classList.add("hidden");
+}
+
+async function saveEditedService(){
+ if(!editingServiceId)return;
+ const date=getDateParts("editServiceDay","editServiceMonth","editServiceYear");
+ const service=document.getElementById("editServiceType").value;
+ const amount=Number(document.getElementById("editServiceAmount").value);
+ const tip=Number(document.getElementById("editServiceTip").value||0);
+ const payment=document.getElementById("editServicePayment").value;
+ const vip=document.getElementById("editServiceVip").checked;
+ if(!date||amount<=0||tip<0)return msg("Revisá la fecha y los montos");
+ const {error}=await sb.from("movements").update({date,service,amount,tip,payment,vip}).eq("id",editingServiceId).eq("user_id",currentUser.id).eq("kind","service").eq("deleted",false);
+ if(error)return msg(error.message);
+ closeEditService();msg("Servicio actualizado");await refresh();
+}
+
+async function deleteService(id){
+ const ok=confirm("¿Seguro que querés eliminar este servicio?\nSe quitará de tus totales, pero quedará guardado como eliminado.");
+ if(!ok)return;
+ const {error}=await sb.from("movements").update({deleted:true}).eq("id",id).eq("user_id",currentUser.id).eq("kind","service");
+ if(error)return msg(error.message);
+ msg("Servicio eliminado");await refresh();
+}
+
+async function editWithdrawal(id){
+ const {data,error}=await sb.from("movements").select("*").eq("id",id).eq("user_id",currentUser.id).eq("kind","withdrawal").eq("deleted",false).single();
+ if(error||!data)return msg("No se encontró el retiro");
+ document.getElementById("editWithdrawalId").value=id;
+ document.getElementById("editWithdrawalDate").value=data.date||today();
+ document.getElementById("editWithdrawalAmount").value=data.amount||0;
+ document.getElementById("editWithdrawalPayment").value=data.payment||"Efectivo";
+ document.getElementById("editWithdrawalReason").value=data.reason||"";
+ closeDayEditor();
+ document.getElementById("editWithdrawalModal").classList.remove("hidden");
+}
+
+function closeEditWithdrawal(){document.getElementById("editWithdrawalModal").classList.add("hidden");}
+
+async function saveEditedWithdrawal(){
+ const id=document.getElementById("editWithdrawalId").value;
+ const date=document.getElementById("editWithdrawalDate").value||today();
+ const amount=Number(document.getElementById("editWithdrawalAmount").value);
+ const payment=document.getElementById("editWithdrawalPayment").value;
+ const reason=document.getElementById("editWithdrawalReason").value.trim();
+ if(!id||!date||amount<=0)return msg("Revisá la fecha y el monto");
+ const {error}=await sb.from("movements").update({date,amount,payment,reason}).eq("id",id).eq("user_id",currentUser.id).eq("kind","withdrawal").eq("deleted",false);
+ if(error)return msg(error.message);
+ closeEditWithdrawal();msg("Retiro actualizado");await refresh();
+}
+
+async function deleteWithdrawal(id){
+ const ok=confirm("¿Seguro que querés eliminar este retiro?\nSe quitará de los totales, pero quedará guardado como eliminado.");
+ if(!ok)return;
+ const {error}=await sb.from("movements").update({deleted:true}).eq("id",id).eq("user_id",currentUser.id).eq("kind","withdrawal");
+ if(error)return msg(error.message);
+ msg("Retiro eliminado");await refresh();
+}
+
+async function loadSummary(){
+ const m=document.getElementById("summaryMonth").value||monthNow();
+ const from=m+"-01";
+ const to=new Date(Number(m.slice(0,4)),Number(m.slice(5,7)),0).toISOString().slice(0,10);
+ const {data:ms}=await sb.from("movements").select("*").gte("date",from).lte("date",to).eq("deleted",false);
+ const all=ms||[], own=all.filter(x=>x.user_id===currentUser.id);
+ const serviceRows=own.filter(x=>x.kind==="service");
+ const serviceBaseTotal=serviceRows.reduce((a,x)=>a+Number(x.amount||0),0);
+ const tipTotal=serviceRows.reduce((a,x)=>a+Number(x.tip||0),0);
+ const services=serviceBaseTotal+tipTotal;
+ const withdrawals=own.filter(x=>x.kind==="withdrawal").reduce((a,x)=>a+Number(x.amount),0);
+ const expenses=all.filter(x=>x.kind==="expense").reduce((a,x)=>a+Number(x.amount),0);
+ const {data:pm}=await sb.from("product_movements").select("*").gte("date",from).lte("date",to).eq("deleted",false).eq("user_id",currentUser.id);
+ const sales=(pm||[]).filter(x=>x.kind==="sale").reduce((a,x)=>a+Number(x.total||0),0);
+ const purchases=(pm||[]).filter(x=>x.kind==="purchase").reduce((a,x)=>a+Number(x.total||0),0);
+ const profit=(pm||[]).filter(x=>x.kind==="sale").reduce((a,x)=>a+Number(x.profit||0),0);
+ document.getElementById("summaryBox").innerHTML=`
+ <div class="grid">
+ <div class="card"><div class="muted">Mis servicios</div><div class="stat">${money(serviceBaseTotal)}</div></div>
+ <div class="card"><div class="muted">💰 Mis propinas</div><div class="stat">${money(tipTotal)}</div></div>
+ <div class="card"><div class="muted">Total servicios + propinas</div><div class="stat">${money(services)}</div></div>
+ <div class="card"><div class="muted">Mis retiros</div><div class="stat">${money(withdrawals)}</div></div>
+ <div class="card"><div class="muted">Gastos barbería</div><div class="stat">${money(expenses)}</div></div>
+ <div class="card"><div class="muted">Ventas de productos</div><div class="stat">${money(sales)}</div></div>
+ <div class="card"><div class="muted">Compras de insumos</div><div class="stat">${money(purchases)}</div></div>
+ <div class="card"><div class="muted">Ganancia productos</div><div class="stat">${money(profit)}</div></div>
+ </div>
+ <div class="card"><h2>📆 Cierre de cada día</h2><div id="dailyMonthTable"></div></div>`;
+ await loadDailyMonthTable(from,to);
+}
+
+async function loadDailyMonthTable(from,to){
+ const days=[];
+ const start=new Date(from+'T00:00:00');
+ const finish=new Date(to+'T00:00:00');
+ for(let d=new Date(start);d<=finish;d.setDate(d.getDate()+1)){
+  const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  days.push(date);
+ }
+ const rows=[];
+ for(const date of days){
+  const c=await getDailyClosure(date);
+  rows.push(`<tr><td><b>${date.split('-').reverse().join('/')}</b></td><td>${c.countCorte}</td><td>${c.countCombo}</td><td>${c.countBarba}</td><td>${c.countTotal}</td><td>${money(c.serviceBaseTotal)}</td><td>${money(c.tipTotal)}</td><td>${money(c.serviceTotal)}</td><td>${money(c.serviceCash)}</td><td>${money(c.serviceMP)}</td><td>${money(c.withdrawalTotal+c.expenseTotal)}</td><td><b>${money(c.serviceCashBalance)}</b></td><td>${money(c.productSales)}</td><td>${money(c.productCash)}</td><td>${money(c.productMP)}</td><td>${money(c.productPurchases)}</td><td><button class="secondary" style="margin:0 4px 4px 0;padding:7px 9px" onclick="showDayClosure('${date}')">Ver cierre</button><button class="secondary" style="margin:0;padding:7px 9px" onclick="openDayEditor('${date}')">✏️ Ajustar</button></td></tr>`);
+ }
+ document.getElementById('dailyMonthTable').innerHTML=`<div style="overflow-x:auto"><table><tr><th>Día</th><th>Cortes</th><th>Combos</th><th>Barbas</th><th>Total servicios</th><th>Servicios</th><th>Propinas</th><th>Total cobrado</th><th>Efectivo</th><th>MP</th><th>Retiros + gastos</th><th>Caja final</th><th>Productos</th><th>Prod. efectivo</th><th>Prod. MP</th><th>Compras</th><th></th></tr>${rows.join('')||'<tr><td colspan="17">No hay días para mostrar.</td></tr>'}</table></div>`;
+}
+
+function showSection(id){
+ document.querySelectorAll(".view").forEach(x=>x.classList.add("hidden"));
+ document.getElementById(id).classList.remove("hidden");
+ if(id==="products")loadProducts();
+ if(id==="history")loadHistory();
+ if(id==="summary")loadSummary();
+}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+
+(async function(){
+ const {data}=await sb.auth.getSession();
+ if(data.session){
+   currentUser=data.session.user;
+   const {data:p}=await sb.from("profiles").select("name").eq("id",currentUser.id).maybeSingle();
+   currentName=p?.name || (currentUser.email?.startsWith("erick")?"Erick":"Uriel");
+   document.getElementById("loginUser").value=currentName;
+   document.getElementById("loginScreen").classList.add("hidden");
+   document.getElementById("app").classList.remove("hidden");
+   document.getElementById("userLabel").textContent="Sesión: "+currentName;
+   document.getElementById("historyDate").value=today();
+   populateDateParts("serviceDay","serviceMonth","serviceYear");
+   populateDateParts("editServiceDay","editServiceMonth","editServiceYear");
+   setDateParts("serviceDay","serviceMonth","serviceYear",today());
+   document.getElementById("withdrawDate").value=today();
+   document.getElementById("summaryMonth").value=monthNow();
+   await refresh();
+ }
+})();
+</script>
+
+<div id="editServiceModal" class="hidden" style="position:fixed;inset:0;background:#000b;z-index:9999;padding:16px;overflow:auto;">
+  <div class="card" style="max-width:500px;margin:30px auto;background:#1b1b1b;">
+    <h2>✏️ Editar servicio</h2>
+    <input id="editServiceId" type="hidden">
+    <label>Fecha del servicio</label>
+    <div class="date-parts">
+      <select id="editServiceDay" aria-label="Día"></select>
+      <select id="editServiceMonth" aria-label="Mes"></select>
+      <select id="editServiceYear" aria-label="Año"></select>
+    </div>
+    <label>Servicio</label>
+    <select id="editServiceType">
+      <option value="Corte">Corte</option>
+      <option value="Barba">Barba</option>
+      <option value="Combo">Combo</option>
+    </select>
+    <label>Precio</label><input id="editServiceAmount" type="number" min="0">
+    <label>Propina</label><input id="editServiceTip" type="number" min="0">
+    <label>Medio de pago</label>
+    <select id="editServicePayment"><option>Efectivo</option><option>Mercado Pago</option></select>
+    <label style="margin-top:12px"><input id="editServiceVip" type="checkbox" style="width:auto"> Precio VIP</label>
+    <button onclick="saveEditedService()">GUARDAR CAMBIOS</button>
+    <button class="secondary" onclick="closeEditService()">CANCELAR</button>
+  </div>
+</div>
+
+</body>
+</html>
